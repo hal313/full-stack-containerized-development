@@ -4,7 +4,7 @@ All the required assets to develop and run a complete PHP/MySQL/JavaScript/CSS/H
 ## Running The First Time
 * Make sure [docker](https://www.docker.com/) is installed.
 * Set the following environment variables:
-  * SRC_DIR
+  * `SRC_DIR`
 * Run this command
   * `docker-compose up`
 * Open a browser to:
