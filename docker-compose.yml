@@ -1,0 +1,161 @@
+version: '3.5'
+
+
+## Creates a full stack development environment containing:
+##  PHP 7.2.2
+##  Apache
+##  MySQL
+##  MySQL web interface
+##  VS Code web IDE
+##  Reverse proxy to aggregate all the web resources
+
+## TODO: You MUST set the following environment variables OR replace the values within this file
+##
+## SRC_DIR
+## This is the directory where source files will go for the web app; used by both the IDE and the PHP server
+
+
+## Persisting Data
+## In order to persist data (MySQL data and VS Code settings), you must set these two  environment variables
+## and also uncomment the lines with these variables set in the settings definition section
+## for MySQL and VS Code
+##
+## DB_DATA_DIR
+## This is the directory where MySQL will store its database files
+##
+## VSCODE_SETTINGS_DIR
+## The directory where VS Code will save settings (extensions and such)
+
+
+## We list all the "services" - each "service" is a docker container
+##
+## Note that each service has a "networks" definition; this allows us to define one or more
+## virtual networks. Containers on the same network can see each other.
+services:
+
+  ## The database server (mysql)
+  ##
+  ## This container has no interface, but may be accessed via the command line:
+  ## docker run -it --rm --network full_stack mysql:8.0.15 mysql -hmysql -uroot -pp@ssw0rd
+  ##
+  ## "docker run -it --rm" will run a docker container with a prompt and delete the container after it terminates
+  ## "--network full_stack" will run the container on the same network as the services (the MySQL server, in particular)
+  ## "mysql:8.0.15" is the container to run
+  ## "mysql -hmysql -uroot -pp@ssword" will run the "mysql" command with
+  ##   *the host (-h) set to "mysql" (the container nane of the MySQL server)
+  ##   *the user (-u) "root"
+  ##   *the password (-p) "p@ssw0rd" (NOTE: this must match the password assigned to the root user in the MySQL container)
+  db:
+    image: mysql:8.0.15
+    container_name: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - full_stack
+    ports:
+      - 3306:3306
+    environment:
+      ## The root password for SQL
+      MYSQL_ROOT_PASSWORD: p@ssw0rd
+    volumes:
+      ## This volume allows us to persist the SQL data
+      ## TODO: Uncomment this line in order to persist data
+      ## - "${DB_DATA_DIR}:/var/lib/mysql"
+
+  ## A web interface to the database
+  ##
+  ## http://localhost:18080/?server=db&username=root
+  adminer:
+    image: adminer:4.7.1-standalone
+    container_name: adminer
+    networks:
+      - full_stack
+    depends_on:
+      - db
+    ports:
+      - 18080:8080
+
+  ## A web-based IDE (Visual Studio Code)
+
+  ## http://localhost:18081/
+  ide:
+    image: codercom/code-server:1.621
+    container_name: ide
+    command: --allow-http --no-auth
+    networks:
+      - full_stack
+    ports:
+      - 18081:8443
+    volumes:
+      # This volume allows us to persist the project files
+      - "${SRC_DIR}:/home/coder/project"
+      ## TODO: Uncomment this line to persist VS Code settings (such as extensions)
+      ## - "${VSCODE_SETTINGS_DIR}:/home/coder/.local"
+
+  ## The web server used to serve the HTTP app
+  ##
+  ## http://localhost:18082/
+  web:
+    ## Build a docker image for PHP with the "mysqli" extension enabled
+    build:
+      context: php_apache_mysqli
+    image: php-apache-mysqli
+    container_name: web
+    networks:
+      - full_stack
+    depends_on:
+      - db
+    ports:
+      - 18082:80
+    volumes:
+      ## This maps a local directory to the root of the web server, so the files can be served
+      - "${SRC_DIR}:/var/www/html"
+
+  ## The reverse proxy
+  ##
+  ## http://localhost:80
+  proxy:
+    ## Build a custom nginx container with a specific config and index.html
+    build:
+      context: proxy
+    image: reverse_proxy
+    container_name: proxy
+    networks:
+      - full_stack
+    depends_on:
+      - web
+      - ide
+      - adminer
+    ports:
+      - 10080:80
+  ## NOTE: It may be the case that you wish to develop more files for the web server. If that is the case,
+  ##       you should use THIS definition for the 'proxy' service INSTEAD OF the service definition above.
+  ##       Simply comment out the preceeding 'proxy' service definition and uncomment this service definition.
+  ##
+  ##       It is important that you specify the following environement variables!
+  ##
+  ##       PROXY_CONFIG_FILE
+  ##       This should probably be the proxy/conf/nginx.conf file, though you may specify any valid nginx config file
+  ##
+  ##       PROXY_HTML_DIR
+  ##       The directory where you will be live editing HTML files; probably the fully qualified path to proxy/html
+  # proxy:
+  #   image: nginx:1.15.12
+  #   container_name: proxy
+  #   networks:
+  #     - full_stack
+  #   depends_on:
+  #     - web
+  #     - ide
+  #     - adminer
+  #   ports:
+  #     - 10080:80
+  #   volumes:
+  #     - "${PROXY_CONFIG_FILE}:/etc/nginx/conf.d/default.conf"
+  #     - "${PROXY_HTML_DIR}:/usr/share/nginx/html"
+
+
+## A list of the virtual networks to use
+networks:
+  ## All the services reside on the same network, 'fullstack'
+  full_stack:
+    name: full_stack
