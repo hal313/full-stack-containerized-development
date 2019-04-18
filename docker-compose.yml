@@ -75,7 +75,7 @@ services:
       - 18080:8080
 
   ## A web-based IDE (Visual Studio Code)
-
+  ##
   ## http://localhost:18081/
   ide:
     image: codercom/code-server:1.621
