@@ -56,9 +56,9 @@ services:
     environment:
       ## The root password for SQL
       MYSQL_ROOT_PASSWORD: p@ssw0rd
-    volumes:
-      ## This volume allows us to persist the SQL data
-      ## TODO: Uncomment this line in order to persist data
+    ## This volume allows us to persist the SQL data
+    ## TODO: Uncomment this stanza in order to persist data
+    #volumes:
       ## - "${DB_DATA_DIR}:/var/lib/mysql"
 
   ## A web interface to the database
