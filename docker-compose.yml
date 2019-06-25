@@ -1,6 +1,5 @@
 version: '3.5'
 
-
 ## Creates a full stack development environment containing:
 ##  PHP 7.2.2
 ##  Apache
@@ -8,23 +7,6 @@ version: '3.5'
 ##  MySQL web interface
 ##  VS Code web IDE
 ##  Reverse proxy to aggregate all the web resources
-
-## TODO: You MUST set the following environment variables OR replace the values within this file
-##
-## SRC_DIR
-## This is the directory where source files will go for the web app; used by both the IDE and the PHP server
-
-
-## Persisting Data
-## In order to persist data (MySQL data and VS Code settings), you must set these two  environment variables
-## and also uncomment the lines with these variables set in the settings definition section
-## for MySQL and VS Code
-##
-## DB_DATA_DIR
-## This is the directory where MySQL will store its database files
-##
-## VSCODE_SETTINGS_DIR
-## The directory where VS Code will save settings (extensions and such)
 
 
 ## We list all the "services" - each "service" is a docker container
@@ -56,10 +38,9 @@ services:
     environment:
       ## The root password for SQL
       MYSQL_ROOT_PASSWORD: p@ssw0rd
-    ## This volume allows us to persist the SQL data
-    ## TODO: Uncomment this stanza in order to persist data
-    #volumes:
-      ## - "${DB_DATA_DIR}:/var/lib/mysql"
+    volumes:
+      ## This volume allows us to persist the SQL data
+      - "mysql:/var/lib/mysql"
 
   ## A web interface to the database
   ##
@@ -78,18 +59,24 @@ services:
   ##
   ## http://localhost:18081/
   ide:
-    image: codercom/code-server:1.621
+    build:
+      context: ide
+    image: ide
     container_name: ide
     command: --allow-http --no-auth
+    ## The IDE needs to wait until the web server has started before mounting the shared source volume
+    ## in order to apply ownership/write permissions
+    depends_on:
+      - web
     networks:
       - full_stack
     ports:
       - 18081:8443
     volumes:
+      ## This maps a local volume to the project files (the same volume for the web server)
+      - "source:/home/coder/project/"
       # This volume allows us to persist the project files
-      - "${SRC_DIR}:/home/coder/project"
-      ## TODO: Uncomment this line to persist VS Code settings (such as extensions)
-      ## - "${VSCODE_SETTINGS_DIR}:/home/coder/.local"
+      - "vscode-settings:/home/coder/.local/"
 
   ## The web server used to serve the HTTP app
   ##
@@ -107,8 +94,8 @@ services:
     ports:
       - 18082:80
     volumes:
-      ## This maps a local directory to the root of the web server, so the files can be served
-      - "${SRC_DIR}:/var/www/html"
+      ## This maps a local volume to the root of the web server, so the files can be served (same as the IDE)
+      - "source:/var/www/html"
 
   ## The reverse proxy
   ##
@@ -127,35 +114,14 @@ services:
       - adminer
     ports:
       - 10080:80
-  ## NOTE: It may be the case that you wish to develop more files for the web server. If that is the case,
-  ##       you should use THIS definition for the 'proxy' service INSTEAD OF the service definition above.
-  ##       Simply comment out the preceeding 'proxy' service definition and uncomment this service definition.
-  ##
-  ##       It is important that you specify the following environement variables!
-  ##
-  ##       PROXY_CONFIG_FILE
-  ##       This should probably be the proxy/conf/nginx.conf file, though you may specify any valid nginx config file
-  ##
-  ##       PROXY_HTML_DIR
-  ##       The directory where you will be live editing HTML files; probably the fully qualified path to proxy/html
-  # proxy:
-  #   image: nginx:1.15.12
-  #   container_name: proxy
-  #   networks:
-  #     - full_stack
-  #   depends_on:
-  #     - web
-  #     - ide
-  #     - adminer
-  #   ports:
-  #     - 10080:80
-  #   volumes:
-  #     - "${PROXY_CONFIG_FILE}:/etc/nginx/conf.d/default.conf"
-  #     - "${PROXY_HTML_DIR}:/usr/share/nginx/html"
-
 
 ## A list of the virtual networks to use
 networks:
   ## All the services reside on the same network, 'fullstack'
   full_stack:
     name: full_stack
+
+volumes:
+  source:
+  vscode-settings:
+  mysql:
